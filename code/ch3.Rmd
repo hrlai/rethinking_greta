@@ -1,7 +1,14 @@
 ---
 title: "Chapter 3"
-output: html_notebook
+output:
+  pdf_document: default
+  html_notebook: default
 ---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(fig.width=5, fig.height=4) 
+```
+
 
 # Easy
 
@@ -179,11 +186,20 @@ abline(v = 111, col = "grey")
 
 **3H4.** Now compare 10,000 counts of boys from 100 simulated first borns only to the number of boys in the first births, `birth1`. How does the model look in this light?
 ```{r}
-
+n_boy_sim <- rbinom(1e4, size = 100, prob = samples)
+plot(density(n_boy_sim), main = "", xlab = "Number of male births", las = 1)
+abline(v = sum(birth1), col = "grey")
+abline(v = sum(birth2), col = "grey", lty = 2)
 ```
 
 **3H5.** The model assumes that sex of first and second births are independent. To check this assumption, focus now on second births that followed female first borns. Compare 10,000 simulated counts of boys to only those second births that followed girls. To do this correctly, you need to count the number of first borns who were girls and simulate that many births, 10,000 times. Compare the counts of boys in your simulations to the actual observed count of boys following girls. How does the model look in this light? Any guesses what is going on in these data?
 ```{r}
-
+gal_first <- birth2[birth1 == 0]
+n_gal_then_guy <- sum(gal_first)
+n_gal_then_guy_sim <- rbinom(1e4, size = gal_then_guy, prob = samples)
+plot(density(n_gal_then_guy_sim, adjust = 1.2, from = 0, to = 50), 
+     main = "", xlab = "Number of male births following first female birth", las = 1,
+     xlim = c(0, 50))
+abline(v = n_gal_then_guy, col = "grey")
 ```
 
