@@ -196,7 +196,7 @@ abline(v = sum(birth2), col = "grey", lty = 2)
 ```{r}
 gal_first <- birth2[birth1 == 0]
 n_gal_then_guy <- sum(gal_first)
-n_gal_then_guy_sim <- rbinom(1e4, size = gal_then_guy, prob = samples)
+n_gal_then_guy_sim <- rbinom(1e4, size = n_gal_then_guy, prob = samples)
 plot(density(n_gal_then_guy_sim, adjust = 1.2, from = 0, to = 50), 
      main = "", xlab = "Number of male births following first female birth", las = 1,
      xlim = c(0, 50))
