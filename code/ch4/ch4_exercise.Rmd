@@ -41,7 +41,7 @@ m4h1 <- model(alpha, beta, sigma)
 opt_m4h1 <- opt(m4h1, optimiser = bfgs(), hessian = TRUE)
 
 x_new <- c(46.95, 43.72, 64.78, 32.59, 54.63)
-mu_hat <- opt_m4h1$par$alpha + opt_m4h1$par$beta * x_new
+mu_hat <- opt_m4h1$par$alpha + opt_m4h1$par$beta * (x_new - mean(d$weight))
 y_hat_sim <- sapply(mu_hat, function(mean) rnorm(1000, mean, opt_m4h1$par$sigma))
 (y_hat_mean <- apply(y_hat_sim, 2, mean))
 (y_hat_89ci <- apply(y_hat_sim, 2, quantile, probs = c(0.055, 0.945)))
