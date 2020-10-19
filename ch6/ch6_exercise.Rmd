@@ -1,0 +1,158 @@
+---
+title: "Chapter 6 Exercises"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(fig.width=5, fig.height=4) 
+```
+
+# Hard
+
+## 6H3
+
+```{r message=FALSE, warning=FALSE}
+library(rethinking)
+library(greta)
+library(dagitty)
+
+data("foxes")
+
+dag_6H3 <- dagitty("dag {
+                        area -> avgfood -> groupsize -> weight
+                        avgfood -> weight
+                   }")
+plot(dag_6H3)
+adjustmentSets(dag_6H3, exposure = "area", outcome = "weight")
+```
+
+```{r}
+A <- foxes$area
+W <- foxes$weight
+
+# priors
+intercept <- normal(0, 1)
+bA <- normal(0, 1)
+sigma <- exponential(1)
+
+# likelihood
+mu <- intercept + bA * (A-mean(A))/sd(A)
+distribution(W) <- lognormal(mu, sigma)
+
+mod_6H3 <- model(intercept, bA, sigma)
+draws_6H3 <- mcmc(mod_6H3)
+summary(draws_6H3)
+plot(A, W)
+```
+
+## 6H4
+
+```{r}
+adjustmentSets(dag_6H3, exposure = "avgfood", outcome = "weight")
+
+W <- foxes$weight
+F <- foxes$avgfood
+
+# priors
+intercept <- normal(0, 1)
+bF <- normal(0, 1)
+sigma <- exponential(1)
+
+# likelihood
+mu <- intercept + bF * (F-mean(F))/sd(F)
+distribution(W) <- lognormal(mu, sigma)
+
+mod_6H4 <- model(intercept, bF, sigma)
+draws_6H4 <- mcmc(mod_6H4)
+summary(draws_6H4)
+plot(F, W)
+```
+
+## 6H5
+
+```{r}
+adjustmentSets(dag_6H3, exposure = "groupsize", outcome = "weight")
+
+W <- foxes$weight
+F <- foxes$avgfood
+G <- foxes$groupsize
+
+# priors
+intercept <- normal(0, 1)
+bF <- normal(0, 1)
+bG <- normal(0, 1)
+sigma <- exponential(1)
+
+# likelihood
+mu <- intercept + bF * (F-mean(F))/sd(F) + bG * (G-mean(G))/sd(G)
+distribution(W) <- lognormal(mu, sigma)
+
+mod_6H5 <- model(intercept, bF, bG, sigma)
+draws_6H5 <- mcmc(mod_6H5)
+summary(draws_6H5)
+
+par(mfrow = c(1, 2))
+plot(G, W); plot(F, W)
+```
+
+## 6H6
+
+```{r fig.height=3, fig.width=4}
+dag_6H6 <- dagitty("dag {
+                        environment -> neighbour -> focal
+                        environment -> focal
+                   }")
+coordinates(dag_6H6) <- list(x = c(environment = 0, focal = 1, neighbour = -1),
+                             y = c(environment = -1, focal = 0, neighbour = 0))
+plot(dag_6H6)
+adjustmentSets(dag_6H6, exposure = "neighbour", outcome = "focal")
+```
+
+## 6H7
+
+```{r}
+n <- 1000      # number of observations
+true_bNF <- 1  # true effect of neighbour on focal
+true_bEN <- 1 # true effect of environment on neighbour
+true_bEF <- 1 # true effect of environment on focal
+
+set.seed(101)
+E <- rnorm(n)
+N <- rnorm(n, true_bEN * E)
+F <- rnorm(n, - true_bNF * N + true_bEF * E)
+
+plot(N, F)
+
+# priors 
+intercept <- normal(0, 1)
+bNF <- normal(0, 1)
+bEF <- normal(0, 1)
+sigma <- exponential(1)
+
+# likelihood
+mu <- intercept + bEF * E - bNF * N
+distribution(F) <- normal(mu, sigma)
+
+mod_6H7 <- model(intercept, bNF, bEF, sigma)
+draws_6H7 <- mcmc(mod_6H7)
+
+summary(draws_6H7)
+
+# counterfactual plot
+E_new <- c(-1, 0, 1)
+N_new <- seq(min(N), max(N), length.out = 100)
+newdat <- expand.grid(N = N_new, E = E_new)
+mu_hat <- intercept + bEF * newdat$E - bNF * newdat$N
+F_hat <- greta_array(dim = nrow(newdat))
+distribution(F_hat) <- normal(mu_hat, sigma)
+F_hat_sims <- calculate(F_hat, values = draws_6H7, nsim = 1000)
+F_hat_median <- apply(F_hat_sims$F_hat, 2, median)
+F_hat_lci <- apply(F_hat_sims$F_hat, 2, quantile, probs = 0.05)
+F_hat_uci <- apply(F_hat_sims$F_hat, 2, quantile, probs = 0.95)
+
+plot(N, F, col = "lightgrey")
+lines(newdat$N, F_hat_median, col = "red")
+```
+
