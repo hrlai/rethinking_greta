@@ -1,0 +1,200 @@
+---
+title: "Chapter 7 Exercises"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(fig.width=5, fig.height=4) 
+```
+
+# Hard
+
+## 7H1
+
+```{r}
+library(rethinking)
+library(greta)
+library(hoi.utils)
+library(dagitty)
+
+data(Laffer)
+```
+
+Fit linear model:
+
+```{r}
+Trate <- as_data(Laffer$tax_rate)
+Trev  <- Laffer$tax_revenue
+
+int <- normal(0, 10)
+b <- normal(0, 10)
+sigma <- exponential(1)
+
+mu <- int + b * Trate
+
+distribution(Trev) <- normal(mu, sigma)
+
+m7h1a <- model(int, b, sigma)
+draws_7h1a <- mcmc(m7h1a, sampler = hmc(Lmin = 15, Lmax = 20))
+posterior_7h1a <- calculate(mu, sigma, values = draws_7h1a, nsim = 1000)
+loo_7h1a <- loo_greta(Laffer$tax_rate, posterior_7h1a, 
+                      scale = "sigma", family = "normal", method = "waic")
+```
+
+Fit quadratic model:
+
+```{r}
+Trate <- as_data(Laffer$tax_rate)
+Trev  <- Laffer$tax_revenue
+
+b1 <- normal(0, 10)
+b2 <- normal(0, 10)
+sigma <- exponential(1)
+
+mu <- b1 * Trate + b2 * (Trate^2)
+
+distribution(Trev) <- normal(mu, sigma)
+
+m7h1b <- model(b1, b2, sigma)
+draws_7h1b <- mcmc(m7h1b)
+posterior_7h1b <- calculate(mu, sigma, values = draws_7h1b, nsim = 1000)
+loo_7h1b <- loo_greta(Laffer$tax_rate, posterior_7h1b, 
+                      scale = "sigma", family = "normal", method = "waic")
+```
+
+Compare WAIC:
+
+```{r}
+loo::loo_compare(loo_7h1a, loo_7h1b)
+```
+
+# 7H2
+
+```{r}
+loo_7h1a$pointwise
+loo_7h1b$pointwise
+Laffer
+```
+
+Robust regression:
+
+```{r}
+Trate <- as_data(Laffer$tax_rate)
+Trev  <- Laffer$tax_revenue
+
+int <- normal(0, 10)
+b <- normal(0, 10)
+sigma <- exponential(1)
+
+mu <- int + b * Trate
+
+distribution(Trev) <- student(2, mu, sigma)
+
+m7h2a <- model(int, b, sigma)
+draws_7h2a <- mcmc(m7h2a, sampler = hmc(Lmin = 15, Lmax = 20))
+posterior_7h2a <- calculate(mu, sigma, values = draws_7h2a, nsim = 1000)
+loo_7h2a <- loo_greta(Laffer$tax_rate, posterior_7h2a, 
+                      scale = "sigma", family = "lognormal", method = "waic")
+```
+
+
+# 7H5
+
+```{r}
+data("foxes")
+
+F <- scale(foxes$avgfood)
+G <- scale(foxes$groupsize)
+A <- scale(foxes$area)
+
+# model 1
+W <- as_data(foxes$weight)
+int <- normal(0, 1)
+b_f <- normal(0, 1)
+b_g <- normal(0, 1)
+b_a <- normal(0, 1)
+sigma <- exponential(1)
+mu <- int + b_f * F + b_g * G + b_a * A
+distribution(W) <- lognormal(mu, sigma)
+m7h5a <- model(int, b_f, b_g, b_a, sigma)
+draws_7h5a <- mcmc(m7h5a)
+posterior_7h5a <- calculate(mu, sigma, values = draws_7h5a, nsim = 1000)
+waic_7h5a <- loo_greta(foxes$weight, posterior_7h5a, 
+                       mean = "mu", scale = "sigma", family = "lognormal",
+                       method = "waic")
+
+# model 2
+W <- as_data(foxes$weight)
+int <- normal(0, 1)
+b_f <- normal(0, 1)
+b_g <- normal(0, 1)
+sigma <- exponential(1)
+mu <- int + b_f * F + b_g * G
+distribution(W) <- lognormal(mu, sigma)
+m7h5b <- model(int, b_f, b_g, sigma)
+draws_7h5b <- mcmc(m7h5b)
+posterior_7h5b <- calculate(mu, sigma, values = draws_7h5b, nsim = 1000)
+waic_7h5b <- loo_greta(foxes$weight, posterior_7h5b, 
+                       mean = "mu", scale = "sigma", family = "lognormal",
+                       method = "waic")
+
+# model 3
+W <- as_data(foxes$weight)
+int <- normal(0, 1)
+b_g <- normal(0, 1)
+b_a <- normal(0, 1)
+sigma <- exponential(1)
+mu <- int + b_a * A + b_g * G
+distribution(W) <- lognormal(mu, sigma)
+m7h5c <- model(int, b_a, b_g, sigma)
+draws_7h5c <- mcmc(m7h5c)
+posterior_7h5c <- calculate(mu, sigma, values = draws_7h5c, nsim = 1000)
+waic_7h5c <- loo_greta(foxes$weight, posterior_7h5c, 
+                       mean = "mu", scale = "sigma", family = "lognormal",
+                       method = "waic")
+
+# model 4
+W <- as_data(foxes$weight)
+int <- normal(0, 1)
+b_f <- normal(0, 1)
+sigma <- exponential(1)
+mu <- int + b_f * F 
+m7h5d <- model(int, b_f, sigma)
+draws_7h5d <- mcmc(m7h5d)
+posterior_7h5d <- calculate(mu, sigma, values = draws_7h5d, nsim = 1000)
+waic_7h5d <- loo_greta(foxes$weight, posterior_7h5d, 
+                       mean = "mu", scale = "sigma", family = "lognormal",
+                       method = "waic")
+
+# model 5
+W <- as_data(foxes$weight)
+int <- normal(0, 1)
+b_a <- normal(0, 1)
+sigma <- exponential(1)
+mu <- int + b_a * A
+distribution(W) <- lognormal(mu, sigma)
+m7h5e <- model(int, b_a, sigma)
+draws_7h5e <- mcmc(m7h5e)
+posterior_7h5e <- calculate(mu, sigma, values = draws_7h5e, nsim = 1000)
+waic_7h5e <- loo_greta(foxes$weight, posterior_7h5e, 
+                       mean = "mu", scale = "sigma", family = "lognormal",
+                       method = "waic")
+```
+
+```{r}
+loo::loo_compare(waic_7h5a, waic_7h5b, waic_7h5c, waic_7h5d, waic_7h5e)
+```
+
+```{r}
+dag_6H3 <- dagitty("dag {
+                        area -> avgfood -> groupsize -> weight
+                        avgfood -> weight
+                   }")
+plot(dag_6H3)
+adjustmentSets(dag_6H3, exposure = "area", outcome = "weight")
+```
+
