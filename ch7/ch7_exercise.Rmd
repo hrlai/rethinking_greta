@@ -15,7 +15,7 @@ knitr::opts_chunk$set(fig.width=5, fig.height=4)
 
 ## 7H1
 
-```{r}
+```{r include=FALSE}
 library(rethinking)
 library(greta)
 library(hoi.utils)
@@ -43,6 +43,13 @@ draws_7h1a <- mcmc(m7h1a, sampler = hmc(Lmin = 15, Lmax = 20))
 posterior_7h1a <- calculate(mu, sigma, values = draws_7h1a, nsim = 1000)
 loo_7h1a <- loo_greta(Laffer$tax_rate, posterior_7h1a, 
                       scale = "sigma", family = "normal", method = "waic")
+
+# predictions
+Trate_new     <- with(Laffer, seq(min(tax_rate), max(tax_rate), length.out = 100))
+Trev_hat_7h1a <- greta_array(dim = length(Trate_new))
+mu_hat_7h1a   <- int + b * Trate_new
+distribution(Trev_hat_7h1a) <- normal(mu_hat_7h1a, sigma)
+Trev_sims_7h1a <- calculate(Trev_hat_7h1a, values = draws_7h1a, nsim = 1000)
 ```
 
 Fit quadratic model:
@@ -51,11 +58,12 @@ Fit quadratic model:
 Trate <- as_data(Laffer$tax_rate)
 Trev  <- Laffer$tax_revenue
 
+int <- normal(0, 10)
 b1 <- normal(0, 10)
 b2 <- normal(0, 10)
 sigma <- exponential(1)
 
-mu <- b1 * Trate + b2 * (Trate^2)
+mu <- int + b1 * Trate + b2 * (Trate^2)
 
 distribution(Trev) <- normal(mu, sigma)
 
@@ -64,6 +72,13 @@ draws_7h1b <- mcmc(m7h1b)
 posterior_7h1b <- calculate(mu, sigma, values = draws_7h1b, nsim = 1000)
 loo_7h1b <- loo_greta(Laffer$tax_rate, posterior_7h1b, 
                       scale = "sigma", family = "normal", method = "waic")
+
+# predictions
+Trate_new     <- with(Laffer, seq(min(tax_rate), max(tax_rate), length.out = 100))
+Trev_hat_7h1b <- greta_array(dim = length(Trate_new))
+mu_hat_7h1b   <- int + b1 * Trate_new + b2 * (Trate_new^2)
+distribution(Trev_hat_7h1b) <- normal(mu_hat_7h1b, sigma)
+Trev_sims_7h1b <- calculate(Trev_hat_7h1b, values = draws_7h1b, nsim = 1000)
 ```
 
 Compare WAIC:
@@ -72,15 +87,32 @@ Compare WAIC:
 loo::loo_compare(loo_7h1a, loo_7h1b)
 ```
 
+Counterfactual plot:
+
+```{r fig.height=5, fig.width=5}
+plot(Laffer)
+polygon(c(Trate_new, rev(Trate_new)),
+        c(apply(Trev_sims_7h1a$Trev_hat_7h1a[,,1], 2, quantile, probs = 0.05),
+          rev(apply(Trev_sims_7h1a$Trev_hat_7h1a[,,1], 2, quantile, probs = 0.95))),
+        border = NA, col = rgb(0, 0, 1, 0.1))
+polygon(c(Trate_new, rev(Trate_new)),
+        c(apply(Trev_sims_7h1b$Trev_hat_7h1b[,,1], 2, quantile, probs = 0.05),
+          rev(apply(Trev_sims_7h1b$Trev_hat_7h1b[,,1], 2, quantile, probs = 0.95))),
+        border = NA, col = rgb(1, 0, 0, 0.1))
+lines(Trate_new, apply(Trev_sims_7h1a$Trev_hat_7h1a[,,1], 2, median), col = "blue", lwd = 2)
+lines(Trate_new, apply(Trev_sims_7h1b$Trev_hat_7h1b[,,1], 2, median), col = "red", lwd = 2)
+```
+
 # 7H2
 
 ```{r}
 loo_7h1a$pointwise
 loo_7h1b$pointwise
-Laffer
 ```
 
 Robust regression:
+
+First the linear model:
 
 ```{r}
 Trate <- as_data(Laffer$tax_rate)
@@ -98,9 +130,68 @@ m7h2a <- model(int, b, sigma)
 draws_7h2a <- mcmc(m7h2a, sampler = hmc(Lmin = 15, Lmax = 20))
 posterior_7h2a <- calculate(mu, sigma, values = draws_7h2a, nsim = 1000)
 loo_7h2a <- loo_greta(Laffer$tax_rate, posterior_7h2a, 
-                      scale = "sigma", family = "lognormal", method = "waic")
+                      scale = "sigma", family = "student", method = "waic",
+                      df = 2)
+
+# predictions
+Trate_new     <- with(Laffer, seq(min(tax_rate), max(tax_rate), length.out = 100))
+Trev_hat_7h2a <- greta_array(dim = length(Trate_new))
+mu_hat_7h2a   <- int + b * Trate_new
+distribution(Trev_hat_7h2a) <- student(2, mu_hat_7h2a, sigma)
+Trev_sims_7h2a <- calculate(Trev_hat_7h2a, values = draws_7h2a, nsim = 1000)
 ```
 
+Then the quadratic model:
+
+```{r}
+Trate <- as_data(Laffer$tax_rate)
+Trev  <- Laffer$tax_revenue
+
+int <- normal(0, 10)
+b1 <- normal(0, 10)
+b2 <- normal(0, 10)
+sigma <- exponential(1)
+
+mu <- int + b1 * Trate + b2 * (Trate^2)
+
+distribution(Trev) <- student(2, mu, sigma)
+
+m7h2b <- model(b1, b2, sigma)
+draws_7h2b <- mcmc(m7h2b)
+posterior_7h2b <- calculate(mu, sigma, values = draws_7h2b, nsim = 1000)
+loo_7h2b <- loo_greta(Laffer$tax_rate, posterior_7h2b, 
+                      scale = "sigma", family = "student", method = "waic",
+                      df = 2)
+
+# predictions
+Trate_new     <- with(Laffer, seq(min(tax_rate), max(tax_rate), length.out = 100))
+Trev_hat_7h2b <- greta_array(dim = length(Trate_new))
+mu_hat_7h2b   <- int + b1 * Trate_new + b2 * (Trate_new^2)
+distribution(Trev_hat_7h2b) <- student(2, mu_hat_7h2b, sigma)
+Trev_sims_7h2b <- calculate(Trev_hat_7h2b, values = draws_7h2b, nsim = 1000)
+```
+
+Compare WAIC:
+
+```{r}
+loo::loo_compare(loo_7h2a, loo_7h2b)
+```
+
+Counterfactual plot:
+
+```{r fig.height=5, fig.width=5}
+plot(Laffer)
+polygon(c(Trate_new, rev(Trate_new)),
+        c(apply(Trev_sims_7h2a$Trev_hat_7h2a[,,1], 2, quantile, probs = 0.05),
+          rev(apply(Trev_sims_7h2a$Trev_hat_7h2a[,,1], 2, quantile, probs = 0.95))),
+        border = NA, col = rgb(0, 0, 1, 0.1))
+polygon(c(Trate_new, rev(Trate_new)),
+        c(apply(Trev_sims_7h2b$Trev_hat_7h2b[,,1], 2, quantile, probs = 0.05),
+          rev(apply(Trev_sims_7h2b$Trev_hat_7h2b[,,1], 2, quantile, probs = 0.95))),
+        border = NA, col = rgb(1, 0, 0, 0.1))
+lines(Trate_new, apply(Trev_sims_7h2a$Trev_hat_7h2a[,,1], 2, median), col = "blue", lwd = 2)
+lines(Trate_new, apply(Trev_sims_7h2b$Trev_hat_7h2b[,,1], 2, median), col = "red", lwd = 2)
+```
 
 # 7H5
 
