@@ -1,0 +1,247 @@
+---
+title: "Chapter 8 Exercises"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(fig.width=5, fig.height=4) 
+```
+
+# Hard
+
+## 8H1
+
+```{r}
+library(greta)
+library(hoi.utils)
+library(rethinking)
+library(loo)
+library(bayesplot)
+
+data(tulips)
+
+Y <- tulips$blooms / max(tulips$blooms)
+W <- tulips$water - mean(tulips$water)
+S <- tulips$shade - mean(tulips$shade)
+B <- as.numeric(as.factor(tulips$bed))
+
+a <- normal(0.5, 0.25)
+bw <- normal(0, 0.25)
+bs <- normal(0, 0.25)
+bws <- normal(0, 0.25)
+bb <- normal(0, 0.25, dim = max(B))
+sigma <- exponential(1)
+
+mu <- a + bw * W + bs * S + bws * W * S + bb[B] 
+
+distribution(Y) <- normal(mu, sigma)
+
+m8h1 <- model(a, bw, bs, bws, bb, sigma)
+draws_8h1 <- mcmc(m8h1)
+
+posterior_8h1 <- calculate(mu, sigma, values = draws_8h1, nsim = 1000)
+waic_8h1 <- loo_greta(Y, posterior_8h1, scale = "sigma", family = "normal", method = "waic")
+```
+
+## 8H2
+
+```{r fig.height=2, fig.width=3}
+# without bed effect
+Y <- tulips$blooms / max(tulips$blooms)
+W <- tulips$water - mean(tulips$water)
+S <- tulips$shade - mean(tulips$shade)
+
+a <- normal(0.5, 0.25)
+bw <- normal(0, 0.25)
+bs <- normal(0, 0.25)
+bws <- normal(0, 0.25)
+sigma <- exponential(1)
+
+mu <- a + bw * W + bs * S + bws * W * S
+
+distribution(Y) <- normal(mu, sigma)
+
+m8h2 <- model(a, bw, bs, bws, sigma)
+draws_8h2 <- mcmc(m8h2)
+
+posterior_8h2 <- calculate(mu, sigma, values = draws_8h2, nsim = 1000)
+waic_8h2 <- loo_greta(Y, posterior_8h2, scale = "sigma", family = "normal", method = "waic")
+
+# model comparison
+loo_compare(waic_8h1, waic_8h2)
+
+# posterior distribution of bed effects
+mcmc_areas_ridges(draws_8h1, vars(starts_with("bb")))
+```
+## 8H3
+
+### a
+
+```{r}
+data("rugged")
+
+rugged2 <- rugged[complete.cases(rugged$rgdppc_2000),]
+
+log_gdp <- log(rugged2$rgdppc_2000)
+log_gdp <- log_gdp / mean(log_gdp)
+R <- rugged2$rugged / max(rugged2$rugged)
+C <- ifelse(rugged2$cont_africa == 1, 1, 2)
+
+a <- normal(1, 0.1, dim = max(C))
+b <- normal(0, 0.3, dim = max(C))
+sigma <- exponential(1)
+
+mu <- a[C] + b[C] * (R - 0.215)
+
+distribution(log_gdp) <- normal(mu, sigma)
+
+m8h3a <- model(a, b, sigma)
+draws_8h3a <- mcmc(m8h3a)
+
+posterior_8h3a <- calculate(mu, sigma, values = draws_8h3a, nsim = 1000)
+waic_8h3a <- loo_greta(log_gdp, posterior_8h3a, scale = "sigma", family = "normal", method = "waic")
+rugged2$country[which(waic_8h3a$pointwise[,2] > 0.4)]
+```
+
+### b
+
+```{r}
+a <- normal(1, 0.1, dim = max(C))
+b <- normal(0, 0.3, dim = max(C))
+sigma <- exponential(1)
+
+mu <- a[C] + b[C] * (R - 0.215)
+
+distribution(log_gdp) <- student(2, mu, sigma)
+
+m8h3b <- model(a, b, sigma)
+draws_8h3b <- mcmc(m8h3b)
+
+posterior_8h3b <- calculate(mu, sigma, values = draws_8h3b, nsim = 1000)
+waic_8h3b <- loo_greta(log_gdp, posterior_8h3b, scale = "sigma", family = "normal", method = "waic")
+rugged2$country[which(waic_8h3b$pointwise[,2] > 0.4)]
+```
+
+## 8H4
+
+```{r fig.height=2, fig.width=3}
+data("nettle")
+
+log_lpc <- log(nettle$num.lang / nettle$k.pop)
+mgs <- scale(nettle$mean.growing.season)
+sgs <- scale(nettle$sd.growing.season)
+log_area <- scale(log(nettle$area))
+
+a <- normal(0, 1)
+bm <- normal(0, 1)
+bs <- normal(0, 1)
+bms <- normal(0, 1)
+ba <- normal(0, 1)
+
+mu <- a + ba * log_area + bm * mgs + bs * sgs + bms * mgs * sgs
+
+distribution(log_lpc) <- normal(mu, sigma)
+
+m8h4a <- model(a, ba, bm, bs, bms, sigma)
+draws_8h4a <- mcmc(m8h4a)
+
+mcmc_intervals(draws_8h4a, vars(starts_with("b")))
+
+```
+
+## 8H5
+
+```{r}
+data("Wines2012")
+
+S <- scale(Wines2012$score)
+J <- as.numeric(as.factor(Wines2012$judge))
+W <- as.numeric(as.factor(Wines2012$wine))
+
+a <- normal(0, 1)
+aj <- normal(0, 1, dim = max(J))
+aw <- normal(0, 1, dim = max(W))
+sigma <- exponential(1)
+
+mu <- a + aj[J] + aw[W]
+
+distribution(S) <- normal(mu, sigma)
+
+m8h5 <- model(a, aj, aw, sigma)
+
+draws_8h5 <- mcmc(m8h5)
+
+mcmc_intervals(draws_8h5, vars(starts_with("a")))
+```
+
+## 8H6
+
+```{r}
+S <- scale(Wines2012$score)
+F <- as.numeric(as.factor(Wines2012$flight))
+WA <- as.numeric(as.factor(Wines2012$wine.amer))
+JA <- as.numeric(as.factor(Wines2012$judge.amer))
+
+a <- normal(0, 1)
+bja <- normal(0, 1, dim = max(JA))
+bwa <- normal(0, 1, dim = max(WA))
+bf <- normal(0, 1, dim = max(F))
+sigma <- exponential(1)
+
+mu <- a + bja[JA] + bwa[WA] + bf[F]
+
+distribution(S) <- normal(mu, sigma)
+
+m8h6 <- model(a, bja, bwa, bf, sigma)
+
+draws_8h6 <- mcmc(m8h6)
+
+mcmc_intervals(draws_8h6, vars(starts_with("b")))
+```
+
+## 8H7
+
+```{r}
+S <- scale(Wines2012$score)
+# F <- as.numeric(as.factor(Wines2012$flight))
+# WA <- as.numeric(as.factor(Wines2012$wine.amer))
+# JA <- as.numeric(as.factor(Wines2012$judge.amer))
+# JW <- as.numeric(as.factor(JA * WA))
+# WF <- as.numeric(as.factor(WA * F))
+# JF <- as.numeric(as.factor(JA * F))
+# JW <- as.numeric(as.factor(paste(JA, WA)))
+# WF <- as.numeric(as.factor(paste(WA, F)))
+# JF <- as.numeric(as.factor(paste(JA, F)))
+
+mm <- as.data.frame(model.matrix(~ (judge.amer + wine.amer + flight)^2, data = Wines2012))
+F  <- as.numeric(as.factor(mm$flightwhite))
+WA <- as.numeric(as.factor(mm$wine.amer))
+JA <- as.numeric(as.factor(mm$judge.amer))
+JW <- as.numeric(as.factor(mm$`judge.amer:wine.amer`))
+WF <- as.numeric(as.factor(mm$`wine.amer:flightwhite`))
+JF <- as.numeric(as.factor(mm$`judge.amer:flightwhite`))
+
+a <- normal(0, 1)
+bja <- normal(0, 1, dim = max(JA))
+bwa <- normal(0, 1, dim = max(WA))
+bf <- normal(0, 1, dim = max(F))
+bjw <- normal(0, 1, dim = max(JW))
+bwf <- normal(0, 1, dim = max(WF))
+bjf <- normal(0, 1, dim = max(JF))
+sigma <- exponential(1)
+
+mu <- a + bja[JA] + bwa[WA] + bf[F] + bjw[JW] + bwf[WF] + bjf[JF]
+
+distribution(S) <- normal(mu, sigma)
+
+m8h7 <- model(a, bja, bwa, bf, bjw, bwf, bjf, sigma)
+
+draws_8h7 <- mcmc(m8h7)
+
+mcmc_intervals(draws_8h7, vars(starts_with("b")))
+```
+
