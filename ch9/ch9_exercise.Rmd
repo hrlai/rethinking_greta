@@ -21,6 +21,7 @@ library(hoi.utils)
 library(rethinking)
 library(loo)
 library(bayesplot)
+library(ggpubr)
 
 data("rugged")
 d <- rugged
@@ -60,5 +61,116 @@ m9m2 <- model(a, b, sigma)
 draws_9m2 <- mcmc(m9m2)
 
 mcmc_dens(draws_9m2, vars(starts_with("b")))
+```
+
+# 9H1
+
+```{r}
+a <- normal(0, 1)
+b <- cauchy(0, 1)
+y <- 1
+
+m9h1 <- model(a, b)
+draws_9h1 <- mcmc(m9h1, chains = 1)
+
+mcmc_dens(draws_9h1)
+mcmc_trace(draws_9h1)
+```
+
+# 9H2
+
+```{r}
+data("WaffleDivorce")
+
+D <- WaffleDivorce$Divorce
+M <- WaffleDivorce$Marriage
+A <- WaffleDivorce$MedianAgeMarriage
+
+# model 5.1
+a <- normal(0, 0.2)
+bA <- normal(0, 0.5)
+sigma <- exponential(1)
+
+mu <- a + bA * A
+distribution(D) <- normal(mu, sigma)
+
+m5.1 <- model(a, bA, sigma)
+draws5.1 <- mcmc(m5.1)
+posterior_5.1 <- calculate(mu, sigma, values = draws5.1, nsim = 1000)
+waic_5.1 <- loo_greta(D, posterior_5.1, scale = "sigma", family = "normal", method = "waic")
+
+# model 5.2
+a <- normal(0, 0.2)
+bM <- normal(0, 0.5)
+sigma <- exponential(1)
+
+mu <- a + bM * M
+distribution(D) <- normal(mu, sigma)
+
+m5.2 <- model(a, bM, sigma)
+draws5.2 <- mcmc(m5.2)
+posterior_5.2 <- calculate(mu, sigma, values = draws5.2, nsim = 1000)
+waic_5.2 <- loo_greta(D, posterior_5.2, scale = "sigma", family = "normal", method = "waic")
+
+# model 5.3
+mu <- a + bM * M + bA * A
+distribution(D) <- normal(mu, sigma)
+
+m5.3 <- model(a, bM, bA, sigma)
+draws5.3 <- mcmc(m5.3)
+posterior_5.3 <- calculate(mu, sigma, values = draws5.3, nsim = 1000)
+waic_5.3 <- loo_greta(D, posterior_5.3, scale = "sigma", family = "normal", method = "waic")
+
+# model comparison
+loo_compare(waic_5.1, waic_5.2, waic_5.3)
+```
+
+# 9H3
+
+```{r fig.height=6, fig.width=4}
+N <- 100
+set.seed(909)
+height <- rnorm(N, 10, 2)
+leg_prop <- runif(M, 0.4, 0.5)
+leg_left <- leg_prop * height + rnorm(N, 0, 0.02)
+leg_right <- leg_prop * height + rnorm(N, 0, 0.02)
+d <- data.frame(height, leg_left, leg_right)
+
+a <- normal(10, 100)
+bl <- normal(2, 10)
+br <- normal(2, 10)
+sigma <- exponential(1)
+
+mu <- a + bl * leg_left + br * leg_right
+distribution(height) <- normal(mu, sigma)
+
+m9h3s <- model(a, bl, br, sigma)
+draws9h3s <- mcmc(m9h3s, 
+                  initial_values = initials(a = 10, bl = 0, br = 0.1, sigma = 1))
+posterior_9h3s <- calculate(mu, sigma, values = draws9h3s, nsim = 1000)
+waic_9h3s <- loo_greta(height, posterior_9h3s, scale = "sigma", family = "normal", method = "waic")
+
+# change prior
+br <- normal(2, 10, truncation = c(0, Inf))
+mu <- a + bl * leg_left + br * leg_right
+distribution(height) <- normal(mu, sigma)
+
+m9h3s2 <- model(a, bl, br, sigma)
+draws9h3s2 <- mcmc(m9h3s2, 
+                  initial_values = initials(a = 10, bl = 0, br = 0.1, sigma = 1))
+posterior_9h3s2 <- calculate(mu, sigma, values = draws9h3s2, nsim = 1000)
+waic_9h3s2 <- loo_greta(height, posterior_9h3s2, scale = "sigma", family = "normal", method = "waic")
+
+# compare posterior distributions
+p1 <- mcmc_dens(draws9h3s, facet_args = list(ncol = 1))
+p2 <- mcmc_dens(draws9h3s2, facet_args = list(ncol = 1))
+ggarrange(p1, p2, labels = c("No constrain", "With constrain"))
+```
+
+# 9H4 
+
+```{r}
+waic_9h3s$estimates["p_waic", "Estimate"]
+waic_9h3s2$estimates["p_waic", "Estimate"]
 ```
 
