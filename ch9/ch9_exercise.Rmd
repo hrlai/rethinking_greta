@@ -1,0 +1,64 @@
+---
+title: "Chapter 9 Exercises"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_chunk$set(fig.width=5, fig.height=4) 
+```
+
+# Hard
+
+## 9M1
+
+```{r}
+library(greta)
+library(hoi.utils)
+library(rethinking)
+library(loo)
+library(bayesplot)
+
+data("rugged")
+d <- rugged
+
+log_gdp <- log(d$rgdppc_2000)
+dd <- d[complete.cases(d$rgdppc_2000), ]
+log_gdp_std <- log(dd$rgdppc_2000) / mean(log(dd$rgdppc_2000))
+rugged_std <- dd$rugged / max(dd$rugged)
+cid <- ifelse(dd$cont_africa == 1, 1, 2)
+
+a <- normal(1, 0.1, dim = 2)
+b <- normal(0, 0.3, dim = 2)
+sigma <- uniform(0, 1)
+
+mu <- a[cid] + b[cid] * (rugged_std - 0.215)
+distribution(log_gdp_std) <- normal(mu, sigma)
+
+m9m1 <- model(a, b, sigma)
+
+draws_9m1 <- mcmc(m9m1)
+
+mcmc_dens(draws_9m1, "sigma")
+```
+
+# 9M2
+
+```{r}
+a <- normal(1, 0.1, dim = 2)
+b <- exponential(0.3, dim = 2)
+sigma <- uniform(0, 1)
+
+mu <- a[cid] + b[cid] * (rugged_std - 0.215)
+distribution(log_gdp_std) <- normal(mu, sigma)
+
+m9m2 <- model(a, b, sigma)
+
+draws_9m2 <- mcmc(m9m2)
+
+mcmc_dens(draws_9m2, vars(starts_with("b")))
+```
+
